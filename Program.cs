@@ -1,13 +1,24 @@
+using Microsoft.AspNetCore.Mvc;
+using PNL_ADL_Parser.Models;
+using PNL_ADL_Parser.Parsers;
+using PNL_ADL_Parser.Validators;
+using FluentValidation;
+using FluentValidation.Results;
+using System.Text.Json;
+
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
-// Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
+// Add services to the container
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
+// Dependency injection
+builder.Services.AddSingleton<PNLParser>();
+builder.Services.AddSingleton<IValidator<FlightDetails>, FlightValidator>();
+
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
+// Configure the HTTP request pipeline
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
@@ -16,29 +27,68 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 
-var summaries = new[]
-{
-    "Freezing", "Bracing", "Chilly", "Cool", "Mild", "Warm", "Balmy", "Hot", "Sweltering", "Scorching"
-};
+// API Endpoints
 
-app.MapGet("/weatherforecast", () =>
+// Endpoint per caricare e analizzare un file PNL/ADL
+app.MapPost("/api/parse", ([FromServices] PNLParser parser, [FromBody] string[] fileLines) =>
 {
-    var forecast =  Enumerable.Range(1, 5).Select(index =>
-        new WeatherForecast
-        (
-            DateOnly.FromDateTime(DateTime.Now.AddDays(index)),
-            Random.Shared.Next(-20, 55),
-            summaries[Random.Shared.Next(summaries.Length)]
-        ))
-        .ToArray();
-    return forecast;
+    try
+    {
+        var flightDetails = parser.Parse(fileLines);
+        return Results.Ok(flightDetails);
+    }
+    catch (Exception ex)
+    {
+        return Results.Problem($"Error parsing file: {ex.Message}");
+    }
 })
-.WithName("GetWeatherForecast")
+.WithName("ParseFile")
+.WithOpenApi();
+
+// Endpoint per validare un oggetto FlightDetails
+app.MapPost("/api/validate", ([FromServices] IValidator<FlightDetails> validator, [FromBody] FlightDetails flightDetails) =>
+{
+    ValidationResult results = validator.Validate(flightDetails);
+
+    if (!results.IsValid)
+    {
+        var errors = results.Errors.Select(e => new { e.PropertyName, e.ErrorMessage });
+        return Results.BadRequest(errors);
+    }
+
+    return Results.Ok("Validation successful");
+})
+.WithName("ValidateFlightDetails")
+.WithOpenApi();
+
+// Endpoint per ottenere un esempio di formato JSON
+app.MapGet("/api/example", () =>
+{
+    var example = new FlightDetails
+    {
+        FlightNumber = "NO6149",
+        Route = "RHO-MXP",
+        FlightDate = DateTime.Parse("2023-09-07"),
+        PassengerCount = 1,
+        Passengers = new List<PassengerDetails>
+        {
+            new PassengerDetails
+            {
+                LastName = "Albanesi",
+                FirstName = "Marcello",
+                PassengerType = "MR",
+                SpecialRequests = new List<string> { "Seat 12A", "Vegetarian Meal" },
+                Baggage = new List<BaggageDetails>
+                {
+                    new BaggageDetails { Type = "BAGS", Status = "HK1", Weight = 15.0 }
+                }
+            }
+        }
+    };
+
+    return Results.Ok(JsonSerializer.Serialize(example, new JsonSerializerOptions { WriteIndented = true }));
+})
+.WithName("GetExample")
 .WithOpenApi();
 
 app.Run();
-
-record WeatherForecast(DateOnly Date, int TemperatureC, string? Summary)
-{
-    public int TemperatureF => 32 + (int)(TemperatureC / 0.5556);
-}
