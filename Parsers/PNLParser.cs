@@ -1,5 +1,6 @@
 using System;
 using System.Globalization;
+using System.Text;
 using PNL_ADL_Parser.Models;
 
 namespace PNL_ADL_Parser.Parsers;
@@ -22,30 +23,43 @@ public class PNLParser
         {
             Passengers = new List<PassengerDetails>()
         };
-
-        foreach (var line in fileLines)
+        //salva header dell'aereo
+        if (fileLines[0].StartsWith("PNL", StringComparison.OrdinalIgnoreCase))
         {
-            // Parsing dell'intestazione del volo
-            if (line.StartsWith("PNL", StringComparison.OrdinalIgnoreCase))
-            {
-                ParseFlightHeader(line,fileLines[1], flightDetails);
-            }
-            // Parsing dei dettagli del passeggero
-            else if (line.StartsWith("1"))
-            {
-                int index = Array.IndexOf(fileLines, line);
+            ParseFlightHeader(fileLines[0],fileLines[1], flightDetails);
+        }
+
+        List<string> currentPassengerLines = new List<string>();
+        
+        // Itera dalle righe successive, partendo dalla quarta
+        for (int i = 3; i < fileLines.Length; i++)
+        {
+            if (fileLines[i].StartsWith("1") && fileLines[i] != ""){
                 try
                 {
-                    var passenger = ParsePassenger(line);
+                    if(currentPassengerLines.Count == 0){
+                        currentPassengerLines.Add(fileLines[i]);
+                    }else{
+                    //inserisci il vecchio passeggero 
+                    var passenger = ParsePassenger(currentPassengerLines);
                     flightDetails.Passengers.Add(passenger);
+                    currentPassengerLines.Clear();
+                    currentPassengerLines.Add(fileLines[i]);
+                    }
                 }
                 catch (Exception ex)
                 {
-                    throw new FormatException($"Errore nel parsing della riga del passeggero: {line}", ex);
+                    throw new FormatException($"Errore nel parsing della riga del passeggero: {fileLines[i]}", ex);
                 }
+            }else if(fileLines[i].StartsWith("ENDPNL")){
+                var passenger = ParsePassenger(currentPassengerLines);
+                flightDetails.Passengers.Add(passenger);
+                currentPassengerLines.Clear();
+            }
+            else{
+                currentPassengerLines.Add(fileLines[i]);
             }
         }
-
         // Calcola il numero di passeggeri
         flightDetails.PassengerCount = flightDetails.Passengers.Count;
         return flightDetails;
@@ -105,17 +119,23 @@ public class PNLParser
     /// <param name="line">La stringa contenente le informazioni del passeggero. Es: "1ALBANESI/MARCELLOMR.R/TOP AL.L/655F43.R/PDBG HK1 BAGS 01".</param>
     /// <returns>Un oggetto <see cref="PassengerDetails"/> contenente le informazioni del passeggero.</returns>
     /// <exception cref="FormatException">Viene generata quando il formato della riga del passeggero è invalido.</exception>
-    private PassengerDetails ParsePassenger(string line)
+    private PassengerDetails ParsePassenger(List<string> lines)
     {
-        // Esempio di riga: "1ALBANESI/MARCELLOMR.R/TOP AL.L/655F43.R/PDBG HK1 BAGS 01"
+        // Inizializza la lista delle richieste speciali e dei bagagli
+        PassengerDetails        passengerDetails    = new PassengerDetails();
+        List<AdditionalInfo>    AdditionalInfo      = new List<AdditionalInfo>();
+        List<BaggageDetails>    baggageDetails      = new List<BaggageDetails>();
+        //var specialRequests = new List<string>();
+        passengerDetails.SpecialRequests = AdditionalInfo;
+        passengerDetails.Baggage = baggageDetails;
+        // Verifica che la riga del nome e cognome contenga almeno 2 parti
+        string line = lines[0];
         var parts = line.Split('/');
-        
-        // Verifica che la riga contenga almeno 2 parti
         if (parts.Length < 2)
-            throw new FormatException($"Formato del passeggero non valido: {line}");
+            throw new FormatException($"Formato nome e cognome del passeggero non valido: {line}");
 
         // Estrai il cognome rimuovendo il prefisso "1"
-        var lastName = parts[0].Substring(1); 
+        passengerDetails.LastName = parts[0].Substring(1); 
 
         // Estrai il nome e il tipo passeggero separati da un trattino
         var firstNameAndType = parts[1].Split('-', StringSplitOptions.RemoveEmptyEntries);
@@ -124,17 +144,182 @@ public class PNLParser
         if (firstNameAndType.Length < 2)
             throw new FormatException($"Nome o tipo di passeggero non valido: {parts[1]}");
 
-        var firstName       = firstNameAndType[0];
-        var passengerType   = firstNameAndType[1];
-        var pnr             = firstNameAndType[1];
+        passengerDetails.FirstName       = firstNameAndType[0];
+        passengerDetails.PassengerType   = firstNameAndType[1];
+        var status = "";
+        var type = "";
+        var quantity = 0;
+        Ticket ticket;
+        for (int i = 1; i < lines.Count; i++){
+            var currentLine = lines[i];
+            switch (currentLine)
+                {
+                    case var _ when currentLine.StartsWith(".L"):
+                        passengerDetails.PNR = currentLine;
+                        break;
+
+                    case var _ when currentLine.StartsWith(".R/TOP"):
+                        passengerDetails.TourOperator = currentLine.Replace(".R/TOP", "").Trim(); // Rimuove ".R/TOP" e pulisce gli spazi
+                        break;
+
+                    case var _ when currentLine.StartsWith(".R/PDBG"):
+                        // Rimuove il prefisso e separa i componenti
+                        var pdbgDetails = currentLine.Replace(".R/PDBG", "").Trim();
+                        var pdbgParts = pdbgDetails.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+
+                        if (pdbgParts.Length < 3)
+                            throw new FormatException($"Formato non valido per la riga bagagli: {currentLine}");
+
+                        // Estrae i dettagli
+                        status = pdbgParts[0]; // HK1
+                        type = pdbgParts[1];   // BAGS
+                        quantity = int.TryParse(pdbgParts[2], out var count) ? count : 0; // 01 -> 1
+
+                        // Aggiunge i dettagli del bagaglio
+                        baggageDetails.Add(new BaggageDetails
+                        {
+                            Type = type,
+                            Status = status,
+                            Weight = 0, // Default (peso non specificato in questa riga)
+                            ExtraWeight = 0, // Default
+                        });
+                        break;
+
+                    case var _ when currentLine.StartsWith(".R/XBAG"):
+                        // Rimuove il prefisso e separa i componenti
+                        var xbagDetails = currentLine.Replace(".R/XBAG", "").Trim();
+                        var xbagParts = xbagDetails.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+
+                        if (xbagParts.Length < 3)
+                            throw new FormatException($"Formato non valido per la riga bagaglio extra: {currentLine}");
+
+                        // Estrae i dettagli
+                        status = xbagParts[0]; // HK1
+                        var weight = double.TryParse(xbagParts[1].Replace("KG", ""), out var kg) ? kg : 0; // 15KG -> 15
+                        var extraInfo = xbagParts[2]; // FREE
+
+                        // Aggiunge i dettagli del bagaglio extra
+                        baggageDetails.Add(new BaggageDetails
+                        {
+                            Type = "XBAG",
+                            Status = status,
+                            Weight = weight, // Peso del bagaglio
+                            ExtraWeight = weight, // Peso extra coincide per XBAG
+                        });
+                        break;
+
+                    case var _ when currentLine.StartsWith(".R/TKNE"):
+                        // Rimuove il prefisso e separa i componenti
+                        var tkneDetails = currentLine.Replace(".R/TKNE", "").Trim();
+                        var tkneParts = tkneDetails.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+
+                        if (tkneParts.Length < 2)
+                            throw new FormatException($"Formato non valido per il numero del biglietto elettronico: {currentLine}");
+
+                        var ticketStatus = tkneParts[0]; // HK1
+                        var ticketNumber = tkneParts[1].Split('/')[0]; // 7032015262740 (estrae solo il numero)
+
+                        // Salva il biglietto elettronico come informazione addizionale
+                        passengerDetails.ElectronicTicket = new Ticket
+                        {
+                            Code = ticketNumber,
+                            Status = ticketStatus
+                        };
+
+                        // Salva l'oggetto Ticket nel passeggero
+                        break;
+
+                    case var _ when currentLine.StartsWith(".R/CHLD"):
+                        var childDetails = currentLine.Replace(".R/CHLD", "").Trim();
+                        var childStatus = childDetails.Split(' ', StringSplitOptions.RemoveEmptyEntries)[0]; // HK1
+
+                        // Aggiungi l'informazione alla lista AdditionalInfo
+                        AdditionalInfo.Add(new AdditionalInfo
+                        {
+                            Type = "CHILD",
+                            Status = childStatus
+                        });
+                        break;
+
+                    case var _ when currentLine.StartsWith(".R/RQST"):
+                        // Rimuove il prefisso
+                        var rqstDetails = currentLine.Replace(".R/RQST", "").Trim();
+                        var rqstParts = rqstDetails.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+
+                        if (rqstParts.Length < 2)
+                            throw new FormatException($"Formato non valido per la richiesta del passeggero: {currentLine}");
+                        
+                        var requestStatus = rqstParts[0]; // HK1
+                        var requestSeat = rqstParts[1]; // Es. 12A
+                        // Aggiunge la richiesta specifica
+                        AdditionalInfo.Add(new AdditionalInfo
+                            {
+                                Type = "REQUEST",
+                                Status = requestStatus,
+                                SeatRequest = requestSeat
+                            });
+                        break;
+
+                }
+        }
+
+
+
         // Restituisci un oggetto PassengerDetails popolato
-        return new PassengerDetails
-        {
-            LastName = lastName,
-            FirstName = firstName,
-            PassengerType = passengerType,
-            SpecialRequests = new List<string>(), // Placeholder per richieste speciali
-            Baggage = new List<BaggageDetails>()  // Placeholder per dettagli bagagli
-        };
+        return passengerDetails;
     }
+
+public string GeneratePNLFile(FlightDetails flightDetails)
+{
+    StringBuilder pnlContent = new StringBuilder();
+
+    // Aggiungi i dettagli di volo (header)
+    pnlContent.AppendLine($"PNL {flightDetails.FlightNumber} {flightDetails.Route} {flightDetails.FlightDate:yyyy-MM-dd}");
+
+    // Aggiungi ogni passeggero
+    foreach (var passenger in flightDetails.Passengers)
+    {
+        // Header del passeggero (una riga per ogni passeggero)
+        pnlContent.AppendLine($"1{passenger.LastName}/{passenger.FirstName}{passenger.PassengerType}");
+
+        // PNR
+        if (!string.IsNullOrEmpty(passenger.PNR))
+        {
+            pnlContent.AppendLine($" .L/{passenger.PNR}");
+        }
+
+        // Dettagli del biglietto elettronico
+        if (passenger.ElectronicTicket != null)
+        {
+            pnlContent.AppendLine($" .R/TKNE {passenger.ElectronicTicket.Code} {passenger.ElectronicTicket.Status}");
+        }
+
+        // Baggage (bagagli)
+        foreach (var baggage in passenger.Baggage)
+        {
+            pnlContent.AppendLine($" .R/{baggage.Type} {baggage.Status} {baggage.Weight}KG {baggage.ExtraWeight}KG");
+        }
+
+        // Informazioni aggiuntive
+        foreach (var info in passenger.SpecialRequests)
+        {
+            if (info.Type == "CHLD")
+            {
+                pnlContent.AppendLine($" .R/CHLD {info.Status}");
+            }
+            else if (info.Type == "RQST")
+            {
+                pnlContent.AppendLine($" .R/RQST {info.Status} {info.SeatRequest}");
+            }
+        }
+
+        // Aggiungi una linea vuota per separare ogni passeggero
+        pnlContent.AppendLine();
+    }
+
+    // Restituisci il contenuto del file PNL
+    return pnlContent.ToString();
+}
+
+
 }

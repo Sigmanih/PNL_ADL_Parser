@@ -76,7 +76,7 @@ app.MapPost("/api/validate", ([FromServices] IValidator<FlightDetails> validator
 /// Endpoint per ottenere un esempio di formato JSON per FlightDetails.
 /// </summary>
 /// <remarks>Questo endpoint restituisce un esempio di un oggetto FlightDetails in formato JSON ben formattato.</remarks>
-app.MapGet("/api/example", () =>
+/*app.MapGet("/api/example", () =>
 {
     // Crea un esempio di FlightDetails
     var example = new FlightDetails
@@ -106,6 +106,6 @@ app.MapGet("/api/example", () =>
 })
 .WithName("GetExample") // Assegna un nome all'endpoint
 .WithOpenApi(); // Abilita OpenAPI per l'endpoint
-
+*/
 // Avvia l'applicazione
 app.Run();
