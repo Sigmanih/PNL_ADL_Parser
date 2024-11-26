@@ -8,62 +8,77 @@ using System.Text.Json;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container
+// Aggiungi i servizi al contenitore
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-// Dependency injection
-builder.Services.AddSingleton<PNLParser>();
-builder.Services.AddSingleton<IValidator<FlightDetails>, FlightValidator>();
+// Iniezione delle dipendenze
+builder.Services.AddSingleton<PNLParser>();                                     // Aggiungi il parser per l'analisi del file PNL
+builder.Services.AddSingleton<IValidator<FlightDetails>, FlightValidator>();    // Aggiungi il validatore per FlightDetails
 
 var app = builder.Build();
 
-// Configure the HTTP request pipeline
+// Configura la pipeline delle richieste HTTP
 if (app.Environment.IsDevelopment())
 {
-    app.UseSwagger();
-    app.UseSwaggerUI();
+    app.UseSwagger();                               // Abilita Swagger in modalità sviluppo
+    app.UseSwaggerUI();                             // Interfaccia utente di Swagger per esplorare le API
 }
 
-app.UseHttpsRedirection();
+app.UseHttpsRedirection();                          // Abilita il reindirizzamento su HTTPS
 
 // API Endpoints
 
-// Endpoint per caricare e analizzare un file PNL/ADL
+/// <summary>
+/// Endpoint per caricare e analizzare un file PNL/ADL.
+/// </summary>
+/// <remarks>Questo endpoint riceve un array di stringhe che rappresentano il contenuto di un file PNL e restituisce i dettagli del volo e i passeggeri.</remarks>
 app.MapPost("/api/parse", ([FromServices] PNLParser parser, [FromBody] string[] fileLines) =>
 {
     try
     {
+        // Esegui il parsing del file
         var flightDetails = parser.Parse(fileLines);
-        return Results.Ok(flightDetails);
+        return Results.Ok(flightDetails); // Restituisce i dettagli del volo in caso di successo
     }
     catch (Exception ex)
     {
-        return Results.Problem($"Error parsing file: {ex.Message}");
+        // Restituisce un errore se il parsing fallisce
+        return Results.Problem($"Errore nel parsing del file: {ex.Message}");
     }
 })
-.WithName("ParseFile")
-.WithOpenApi();
+.WithName("ParseFile") // Assegna un nome all'endpoint
+.WithOpenApi(); // Abilita OpenAPI per l'endpoint
 
-// Endpoint per validare un oggetto FlightDetails
+/// <summary>
+/// Endpoint per validare un oggetto FlightDetails.
+/// </summary>
+/// <remarks>Questo endpoint riceve un oggetto FlightDetails e restituisce il risultato della validazione.</remarks>
 app.MapPost("/api/validate", ([FromServices] IValidator<FlightDetails> validator, [FromBody] FlightDetails flightDetails) =>
 {
+    // Esegui la validazione
     ValidationResult results = validator.Validate(flightDetails);
 
     if (!results.IsValid)
     {
+        // Restituisce errori di validazione se non validato correttamente
         var errors = results.Errors.Select(e => new { e.PropertyName, e.ErrorMessage });
         return Results.BadRequest(errors);
     }
 
-    return Results.Ok("Validation successful");
+    // Restituisce un messaggio di successo se la validazione è riuscita
+    return Results.Ok("Validazione riuscita");
 })
-.WithName("ValidateFlightDetails")
-.WithOpenApi();
+.WithName("ValidateFlightDetails") // Assegna un nome all'endpoint
+.WithOpenApi(); // Abilita OpenAPI per l'endpoint
 
-// Endpoint per ottenere un esempio di formato JSON
+/// <summary>
+/// Endpoint per ottenere un esempio di formato JSON per FlightDetails.
+/// </summary>
+/// <remarks>Questo endpoint restituisce un esempio di un oggetto FlightDetails in formato JSON ben formattato.</remarks>
 app.MapGet("/api/example", () =>
 {
+    // Crea un esempio di FlightDetails
     var example = new FlightDetails
     {
         FlightNumber = "NO6149",
@@ -86,9 +101,11 @@ app.MapGet("/api/example", () =>
         }
     };
 
+    // Restituisce l'esempio in formato JSON ben formattato
     return Results.Ok(JsonSerializer.Serialize(example, new JsonSerializerOptions { WriteIndented = true }));
 })
-.WithName("GetExample")
-.WithOpenApi();
+.WithName("GetExample") // Assegna un nome all'endpoint
+.WithOpenApi(); // Abilita OpenAPI per l'endpoint
 
+// Avvia l'applicazione
 app.Run();
