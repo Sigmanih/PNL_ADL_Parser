@@ -56,9 +56,9 @@ dotnet run
 ### Struttura del Progetto
 
 PNL_ADL_Parser
-├── Parsers/           # Classi per il parsing dei documenti PNL/ADL.
+├── Services/          # Classi per il parsing dei documenti PNL/ADL.
 ├── Models/            # Modelli dati per i dettagli volo e passeggeri.
-├── Validators/        # Validatori per controllare i dati estratti.
+├── Controllers/       # Controllers per servire le API 
 ├── Utils/             # Utilità comuni (es. helper per file I/O).
 ├── Tests/             # Test unitari per verificare la correttezza del codice.
 ├── Program.cs         # Entry point dell'applicazione.

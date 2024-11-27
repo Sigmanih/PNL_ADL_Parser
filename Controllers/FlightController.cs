@@ -32,6 +32,11 @@ namespace PNL_ADL_Parser.Controllers
             {
                 // Esegui il parsing del file
                 var flightDetails = _parser.Parse(fileLines);
+                // Salva il file di risposta in un file locale di Test
+                SaveResponseToFile(JsonSerializer.Serialize(flightDetails, new JsonSerializerOptions
+                {
+                    WriteIndented = true // Per formattare il JSON con indentazione leggibile
+                }));  
                 return Ok(flightDetails); // Restituisce i dettagli del volo in caso di successo
             }
             catch (Exception ex)
@@ -69,6 +74,10 @@ namespace PNL_ADL_Parser.Controllers
                     // Esegui il parsing del contenuto del file
                     var flightDetails = _parser.Parse(fileLines.ToArray());
 
+                    SaveResponseToFile(JsonSerializer.Serialize(flightDetails, new JsonSerializerOptions
+                    {
+                        WriteIndented = true // Per formattare il JSON con indentazione leggibile
+                    }));  
                     // Restituisci i dettagli del volo in caso di successo
                     return Ok(flightDetails);
                 }
@@ -92,6 +101,8 @@ namespace PNL_ADL_Parser.Controllers
                 // Usa il parser per generare il contenuto del file PNL
                 var pnlContent = _parser.GeneratePNLFile(flightDetails);
 
+                // Salva il file di risposta in un file locale di Test
+                SaveResponseToFile(pnlContent);
                 // Restituisci solo il contenuto delle righe, senza "pnlContent" come chiave
                 return Content(pnlContent, "text/plain");
             }
@@ -102,5 +113,42 @@ namespace PNL_ADL_Parser.Controllers
             }
         }
 
+        /// <summary>
+        /// Salva la risposta API in un file nella cartella Tests con nome incrementale.
+        /// </summary>
+        private void SaveResponseToFile(string content)
+        {
+            try
+            {
+                // Definisci il percorso della directory Tests
+                var directoryPath = Path.Combine(Directory.GetCurrentDirectory(), "Tests");
+                
+                // Crea la directory se non esiste
+                if (!Directory.Exists(directoryPath))
+                {
+                    Directory.CreateDirectory(directoryPath);
+                }
+
+                // Trova l'ultimo numero di file nella directory
+                var existingFiles = Directory.GetFiles(directoryPath, "*.txt");
+                var maxIndex = existingFiles
+                    .Select(file => Path.GetFileNameWithoutExtension(file)) // Prende solo il nome del file senza estensione
+                    .Where(name => int.TryParse(name, out _))              // Considera solo file con nomi numerici
+                    .Select(int.Parse)                                    // Converte in interi
+                    .DefaultIfEmpty(0)                                    // Imposta 0 se non ci sono file
+                    .Max();                                               // Trova il massimo
+
+                // Nome del nuovo file incrementale
+                var newFileName = Path.Combine(directoryPath, $"{maxIndex + 1}.txt");
+
+                // Scrivi il contenuto nel nuovo file
+                System.IO.File.WriteAllText(newFileName, content);
+            }
+            catch (Exception ex)
+            {
+                // Logga eventuali errori nel salvataggio del file
+                Console.WriteLine($"Errore durante il salvataggio del file di risposta: {ex.Message}");
+            }
+        }
     }
 }
