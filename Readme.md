@@ -37,7 +37,7 @@
 ### Installazione
 1. Clona il repository:
    ```bash
-   git clone https://github.com/USERNAME/PNL_ADL_Parser.git
+   git clone https://github.com/Sigmanih/PNL_ADL_Parser
    cd PNL_ADL_Parser
 
 
