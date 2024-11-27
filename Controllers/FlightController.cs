@@ -82,26 +82,6 @@ namespace PNL_ADL_Parser.Controllers
 
 
         /// <summary>
-        /// Endpoint per validare un oggetto FlightDetails.
-        /// </summary>
-        [HttpPost("validate")]
-        public IActionResult ValidateFlightDetails([FromBody] FlightDetails flightDetails)
-        {
-            // Esegui la validazione
-            ValidationResult results = _validator.Validate(flightDetails);
-
-            if (!results.IsValid)
-            {
-                // Restituisce errori di validazione se non validato correttamente
-                var errors = results.Errors.Select(e => new { e.PropertyName, e.ErrorMessage });
-                return BadRequest(errors);
-            }
-
-            // Restituisce un messaggio di successo se la validazione è riuscita
-            return Ok("Validazione riuscita");
-        }
-
-        /// <summary>
         /// Endpoint per generare il file PNL dal FlightDetails.
         /// </summary>
         [HttpPost("generate-pnl")]
