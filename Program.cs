@@ -17,6 +17,17 @@ builder.Services.AddSingleton<IValidator<FlightDetails>, FlightValidator>();    
 // Aggiungi il supporto per i controller
 builder.Services.AddControllers();
 
+// Aggiungi la configurazione CORS
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowLocalhost", policy =>
+    {
+        policy.WithOrigins("http://localhost:3000")  // Aggiungi l'origine del tuo front-end
+              .AllowAnyHeader()
+              .AllowAnyMethod();
+    });
+});
+
 var app = builder.Build();
 
 // Configura la pipeline delle richieste HTTP
@@ -27,6 +38,9 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();                          // Abilita il reindirizzamento su HTTPS
+
+// Usa la configurazione CORS
+app.UseCors("AllowLocalhost");
 
 // Configura i controller per gestire le richieste
 app.MapControllers();  // Questo è il punto in cui il routing dei controller viene attivato

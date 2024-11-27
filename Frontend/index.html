@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Generazione PNL Volo</title>
+    <!-- Collegamento al file CSS -->
+    <link rel="stylesheet" href="index.css">
+    <!-- Inclusione del file JavaScript -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="index.js" defer></script>
+</head>
+<body>
+
+    <div class="container">
+        <div class="form-container">
+            <h2>Informazioni Volo</h2>
+            <form id="flightForm">
+                <div class="form-row">
+                    <label for="flightNumber">Numero Volo:</label>
+                    <input type="text" id="flightNumber" name="flightNumber" required>
+                </div>
+                
+                <div class="form-row">
+                    <label for="flightName">Nome Volo:</label>
+                    <input type="text" id="flightName" name="flightName" required>
+                </div>
+                
+                <div class="form-row">
+                    <label for="flightDate">Data Volo:</label>
+                    <input type="date" id="flightDate" name="flightDate" required>
+                </div>
+                
+                <div class="form-row">
+                    <label for="route">Rotta:</label>
+                    <input type="text" id="route" name="route" required>
+                </div>
+                
+                <div class="form-row">
+                    <label for="passengerCount">Numero Passeggeri:</label>
+                    <input type="number" id="passengerCount" name="passengerCount" required>
+                </div>
+                
+                <div id="passengerSection"></div>
+    
+                <div class="button-container">
+                    <button type="submit">Genera PNL</button>
+                </div>
+            </form>
+            <div class="response-box" id="responseBox">
+                <h3>Risposta API</h3>
+                <pre id="jsonResponse">Risultato della chiamata API apparirà qui...</pre>
+            </div>
+        </div>
+</body>
+</html>
